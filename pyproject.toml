@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "wot-robot"
+version = "0.1.0"
+description = "WoT Robot"
+authors = ["Yone <1160158693@qq.com>"]
+readme = "README.md"
+packages = [{include = "wot_robot"}]
+
+[tool.poetry.dependencies]
+python = "3.11.9"
+PyYAML = "*"
+opencv-python = "*"
+numpy = "1.26.4"
+mss = "*"
+pynput = "*"
+loguru = "*"
+dxcam = ">=0.0.5"
+ultralytics = ">=8.0.0"
+pytesseract = "*"
+pyinstaller = "*"
+pywin32 = "*"
+dearpygui = "*"
+pyautogui = "*"
+pydantic = "*"
+torch = {version = "*", source = "pytorch-cu128"}
+torchvision = {version = "*", source = "pytorch-cu128"}
+
+[[tool.poetry.source]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+default = false
+secondary = true
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+

@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# C++ Build
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+*.a
+*.lib
+*.pyd
+*.exp
+.xmake/
+build/
+.build/
+*.log
+
+# IDE
+.vscode/*
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Models and Data
+*.pth
+*.pt
+*.onnx
+*.h5
+*.weights
+data/
+models/
+checkpoints/
+*.mp4
+*.avi
+*.mkv
+
+# Logs
+logs/
+*.log
+tensorboard/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS
+Thumbs.db
+.DS_Store
+data_collection/WoTDataCollection.spec
