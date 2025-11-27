@@ -11,9 +11,77 @@ from ultralytics import YOLO
 
 # 统一导入机制
 from loguru import logger
-from train_yolo.dataset_preprocessor import DatasetPreprocessor
+from dataset_preprocessor import DatasetPreprocessor
 
-def CheckDatasetStructure(dataset_dir: Path) -> bool:
+
+def ValidateObbLabels(labels_dir: Path) -> bool:
+    """验证 OBB 标签文件格式。
+
+    Ultralytics YOLO OBB 格式：class x1 y1 x2 y2 x3 y3 x4 y4（9 个值）
+    - class: 类别ID（整数）
+    - x1, y1, x2, y2, x3, y3, x4, y4: 归一化的四个角点坐标（范围 [0, 1]）
+
+    Args:
+        labels_dir: 标签文件目录
+
+    Returns:
+        是否所有标签文件格式正确
+    """
+    label_files = list(labels_dir.glob("*.txt"))
+    if not label_files:
+        logger.warning(f"在 {labels_dir} 中未找到任何标签文件")
+        return True  # 空目录不算错误
+
+    error_count = 0
+    for label_file in label_files:
+        try:
+            lines = label_file.read_text(encoding="utf-8").splitlines()
+            for line_num, line in enumerate(lines, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                parts = line.split()
+                if len(parts) != 9:
+                    logger.error(
+                        f"{label_file.name}:{line_num} - OBB 格式错误，需要 9 个值（class + 8个坐标），"
+                        f"当前 {len(parts)} 个值: {line}"
+                    )
+                    error_count += 1
+                    continue
+
+                try:
+                    class_id = int(float(parts[0]))
+                    coords = [float(parts[i]) for i in range(1, 9)]
+
+                    # 验证归一化坐标范围
+                    for i, coord in enumerate(coords):
+                        if not (0 <= coord <= 1):
+                            coord_name = ['x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'x4', 'y4'][i]
+                            logger.error(
+                                f"{label_file.name}:{line_num} - {coord_name} 超出范围 [0, 1]: {coord}"
+                            )
+                            error_count += 1
+
+                except ValueError as e:
+                    logger.error(
+                        f"{label_file.name}:{line_num} - 数值解析错误: {e}, 行内容: {line}"
+                    )
+                    error_count += 1
+
+        except Exception as e:
+            logger.error(f"读取标签文件 {label_file.name} 时出错: {e}")
+            error_count += 1
+
+    if error_count > 0:
+        logger.error(f"标签验证失败: 发现 {error_count} 个错误")
+        return False
+
+    logger.info(f"标签验证通过: {len(label_files)} 个标签文件")
+    return True
+
+
+def CheckDatasetStructure(dataset_dir: Path, task_type: str = "detect") -> bool:
     """
     检查数据集结构是否正确
     
@@ -58,7 +126,27 @@ def CheckDatasetStructure(dataset_dir: Path) -> bool:
     logger.info(f"数据集结构检查通过: 训练集 {len(train_images)} 张, 验证集 {len(val_images)} 张")
     if len(test_images) > 0:
         logger.info(f"测试集 {len(test_images)} 张")
-    
+
+    # 验证标签格式（如果是 OBB 任务）
+    if task_type == "obb":
+        logger.info("验证 OBB 标签格式...")
+        train_labels_dir = dataset_dir / "train" / "labels"
+        val_labels_dir = dataset_dir / "val" / "labels"
+
+        if not ValidateObbLabels(train_labels_dir):
+            logger.error("训练集标签验证失败")
+            return False
+
+        if not ValidateObbLabels(val_labels_dir):
+            logger.error("验证集标签验证失败")
+            return False
+
+        test_labels_dir = dataset_dir / "test" / "labels"
+        if test_labels_dir.exists():
+            if not ValidateObbLabels(test_labels_dir):
+                logger.error("测试集标签验证失败")
+                return False
+
     return True
 
 def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
@@ -74,7 +162,8 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
     """
     # 检查数据集结构
     dataset_dir = Path(config['dataset']['output_dir'])
-    if not CheckDatasetStructure(dataset_dir):
+    task_type = config['dataset'].get('task_type', 'detect')
+    if not CheckDatasetStructure(dataset_dir, task_type=task_type):
         logger.error("数据集结构检查失败")
         return False
     
@@ -88,9 +177,20 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
 
     # 加载模型
     model_path = Path(config['model']['path'])
-    logger.info(f"加载模型: {model_path}")
+    task_type = config['dataset'].get('task_type', 'detect')
+    logger.info(f"加载模型: {model_path}, 任务类型: {task_type}")
 
-    model = YOLO(model_path)
+    # 根据任务类型加载模型
+    # 注意：对于 OBB 任务，模型文件名通常包含 'obb'，但为了确保正确加载，明确指定 task
+    if task_type == "obb":
+        # 先尝试加载模型，然后设置任务类型
+        model = YOLO(str(model_path))
+        # 如果模型不是 OBB 类型，强制设置为 OBB
+        if hasattr(model, 'task') and model.task != 'obb':
+            logger.warning(f"模型任务类型为 {model.task}，强制设置为 obb")
+        model.task = 'obb'
+    else:
+        model = YOLO(str(model_path))
     
     # 准备训练参数
     train_params = {
@@ -107,6 +207,10 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
         'val': config['output']['val'],
         'verbose': True
     }
+    
+    # 如果是 OBB 任务，在训练参数中明确指定
+    if task_type == "obb":
+        train_params['task'] = 'obb'
     
     # 优化器和学习率参数
     if 'optimizer' in config['training']:

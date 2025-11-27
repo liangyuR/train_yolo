@@ -2,17 +2,17 @@
 
 # 模型配置
 model:
-  path: "yolo11m.pt"
+  path: "yolo11n-obb.pt"
   imgsz: 640
   device: "0"
 
 # 数据集配置
 dataset:
-  # or "detect"
-  task_type: "detect"  
+  # "detect" or "obb"
+  task_type: "obb"  
 
-  source_dir: "C:/Users/11601/project/wot_ai/data/origin_data"
-  output_dir: "C:/Users/11601/project/wot_ai/data/datasets/processed/minimap"
+  source_dir: "C:/data/minimap_masks_bak"
+  output_dir: "C:/data/minimap_masks_bak/processed/"
 
   train_ratio: 0.7
   val_ratio: 0.2
@@ -48,7 +48,7 @@ dataset:
 # 输出配置
 output:
   # 项目名称（使用统一路径，相对于 data/models/training/minimap）
-  project: "data/models/training/minimap"
+  project: "C:/data/minimap_masks_bak/model"
   # 实验名称
   name: "exp_minimap"
   # 是否保存训练过程
@@ -63,7 +63,7 @@ output:
 # 训练参数
 training:
   # 训练轮数
-  epochs: 200
+  epochs: 100
   # 批次大小（减小批次提高梯度稳定性）
   batch: 8
   # 工作线程数
