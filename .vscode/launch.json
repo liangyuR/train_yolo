@@ -12,9 +12,11 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "--model",
-                "./best.pt",
+                "D:/projects/train_yolo/best.pt",
+                "--task",
+                "pose",
                 "--image",
-                "./2.png",
+                "D:/projects/train_yolo/Snipaste_2025-11-27_23-29-08.png",
                 "--output",
                 "./test_output.png"
             ]

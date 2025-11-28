@@ -14,6 +14,15 @@ from loguru import logger
 from dataset_preprocessor import DatasetPreprocessor
 
 
+def _ListImages(image_dir: Path):
+    """列出指定目录下常见格式的图像文件。"""
+    patterns = ("*.png", "*.jpg", "*.jpeg", "*.bmp")
+    images = []
+    for pattern in patterns:
+        images.extend(image_dir.glob(pattern))
+    return images
+
+
 def ValidateObbLabels(labels_dir: Path) -> bool:
     """验证 OBB 标签文件格式。
 
@@ -112,9 +121,10 @@ def CheckDatasetStructure(dataset_dir: Path, task_type: str = "detect") -> bool:
             return False
     
     # 检查是否有文件
-    train_images = list((dataset_dir / "train" / "images").glob("*.png"))
-    val_images = list((dataset_dir / "val" / "images").glob("*.png"))
-    test_images = list((dataset_dir / "test" / "images").glob("*.png")) if (dataset_dir / "test" / "images").exists() else []
+    train_images = _ListImages(dataset_dir / "train" / "images")
+    val_images = _ListImages(dataset_dir / "val" / "images")
+    test_dir = dataset_dir / "test" / "images"
+    test_images = _ListImages(test_dir) if test_dir.exists() else []
     
     if len(train_images) == 0:
         logger.error("训练集图像为空")
@@ -146,6 +156,10 @@ def CheckDatasetStructure(dataset_dir: Path, task_type: str = "detect") -> bool:
             if not ValidateObbLabels(test_labels_dir):
                 logger.error("测试集标签验证失败")
                 return False
+    elif task_type == "pose":
+        train_labels = list((dataset_dir / "train" / "labels").glob("*.txt"))
+        val_labels = list((dataset_dir / "val" / "labels").glob("*.txt"))
+        logger.info(f"Pose 标签统计: train={len(train_labels)}, val={len(val_labels)}")
 
     return True
 
@@ -161,8 +175,9 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
         是否成功
     """
     # 检查数据集结构
-    dataset_dir = Path(config['dataset']['output_dir'])
-    task_type = config['dataset'].get('task_type', 'detect')
+    dataset_cfg = config['dataset']
+    dataset_dir = Path(dataset_cfg['output_dir'])
+    task_type = dataset_cfg.get('task_type', 'detect').lower()
     if not CheckDatasetStructure(dataset_dir, task_type=task_type):
         logger.error("数据集结构检查失败")
         return False
@@ -177,20 +192,15 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
 
     # 加载模型
     model_path = Path(config['model']['path'])
-    task_type = config['dataset'].get('task_type', 'detect')
     logger.info(f"加载模型: {model_path}, 任务类型: {task_type}")
 
     # 根据任务类型加载模型
-    # 注意：对于 OBB 任务，模型文件名通常包含 'obb'，但为了确保正确加载，明确指定 task
-    if task_type == "obb":
-        # 先尝试加载模型，然后设置任务类型
-        model = YOLO(str(model_path))
-        # 如果模型不是 OBB 类型，强制设置为 OBB
-        if hasattr(model, 'task') and model.task != 'obb':
-            logger.warning(f"模型任务类型为 {model.task}，强制设置为 obb")
-        model.task = 'obb'
-    else:
-        model = YOLO(str(model_path))
+    model = YOLO(str(model_path))
+    if task_type in ("obb", "pose"):
+        expected_task = task_type
+        if hasattr(model, "task") and model.task != expected_task:
+            logger.warning(f"模型任务类型为 {getattr(model, 'task', 'unknown')}，强制设置为 {expected_task}")
+        model.task = expected_task
     
     # 准备训练参数
     train_params = {
@@ -208,9 +218,9 @@ def TrainYOLO(config: dict, prepare_dataset: bool = False) -> bool:
         'verbose': True
     }
     
-    # 如果是 OBB 任务，在训练参数中明确指定
-    if task_type == "obb":
-        train_params['task'] = 'obb'
+    # 特定任务的额外参数
+    if task_type in ("obb", "pose"):
+        train_params['task'] = task_type
     
     # 优化器和学习率参数
     if 'optimizer' in config['training']:
@@ -298,7 +308,13 @@ def main():
     config = yaml.safe_load(config_path.read_text(encoding='utf-8'))
 
     # 准备数据集
-    processor = DatasetPreprocessor(config['dataset']['source_dir'], config['dataset']['output_dir'])
+    dataset_cfg = config['dataset']
+    processor = DatasetPreprocessor(
+        dataset_cfg['source_dir'],
+        dataset_cfg['output_dir'],
+        task_type=dataset_cfg.get('task_type', 'detect'),
+        kpt_shape=dataset_cfg.get('kpt_shape')
+    )
     processor.prepare()
 
     success = TrainYOLO(config, prepare_dataset=True)

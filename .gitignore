@@ -11,6 +11,8 @@ build/
 .coverage
 htmlcov/
 
+runs
+
 # Virtual Environment
 venv/
 env/

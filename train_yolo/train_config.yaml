@@ -2,17 +2,17 @@
 
 # 模型配置
 model:
-  path: "yolo11n-obb.pt"
+  path: "yolo11m-pose.pt"
   imgsz: 640
   device: "0"
 
 # 数据集配置
 dataset:
-  # "detect" or "obb"
-  task_type: "obb"  
-
-  source_dir: "C:/data/minimap_masks_bak"
-  output_dir: "C:/data/minimap_masks_bak/processed/"
+  # "detect" or "obb" or "pose"
+  task_type: "pose"  
+  kpt_shape: [3, 3]
+  source_dir: "C:/data/pose_labels"
+  output_dir: "C:/data/pose_labels/processed/"
 
   train_ratio: 0.7
   val_ratio: 0.2
@@ -48,7 +48,7 @@ dataset:
 # 输出配置
 output:
   # 项目名称（使用统一路径，相对于 data/models/training/minimap）
-  project: "C:/data/minimap_masks_bak/model"
+  project: "C:/data/pose_labels/model"
   # 实验名称
   name: "exp_minimap"
   # 是否保存训练过程
@@ -60,62 +60,33 @@ output:
   # 验证阶段置信度阈值（输出更多检测结果）
   val_conf_threshold: 0.001
 
-# 训练参数
 training:
-  # 训练轮数
-  epochs: 100
-  # 批次大小（减小批次提高梯度稳定性）
-  batch: 8
-  # 工作线程数
   workers: 8
-  # 是否启用数据增强
-  augment: true
-  # 优化器（AdamW 比 SGD 在小样本下收敛更平稳）
+  epochs: 150          # 或 200，多给点时间让它慢慢学
+  batch: 24             # 看显存，能 16 更好
   optimizer: "AdamW"
-  # 初始学习率
-  lr0: 0.002
-  # 最终学习率（lr0 * lrf）
+  lr0: 0.0015
   lrf: 0.01
-  # 预热轮数
-  warmup_epochs: 3.0
-  # 早停耐心值（验证指标不改善的轮数）
-  patience: 100
-  # Dropout 率（小样本中防过拟合很有效）
-  dropout: 0.05
-  # 损失权重（小目标检测：降低分类损失，注重定位精度）
-  loss:
-    cls: 0.3   # 分类损失权重（从默认 0.5 降低）
-    box: 7.5   # 边界框损失权重
-    dfl: 1.5   # Distribution Focal Loss 权重
-  # Mosaic 增强（随机拼接 4 张图，小样本检测的神技）
-  mosaic: 1.0
-  # Copy-paste 增强（将目标复制粘贴到其他图像上）
-  copy_paste: 0.2
-  # Mixup 增强（轻微混合增强，提高泛化）
-  mixup: 0.05
-  # 训练后期关闭 mosaic 的轮数（稳定检测）
-  close_mosaic: 20
 
-# 数据增强参数
+  mosaic: 0.1          # 大幅降低，甚至可以直接 0.0
+  copy_paste: 0.0      # 你本身就只有一个 minimap，不需要复制粘贴
+  mixup: 0.0
+
+  close_mosaic: 50     # 如果 mosaic>0，就在后 1/3 epoch 彻底关掉
+
 augmentation:
-  # HSV 色调增强
-  hsv_h: 0.02
-  hsv_s: 0.7
-  hsv_v: 0.5
-  # 旋转角度（度）
-  degrees: 5
-  # 缩放比例
-  scale: 0.5
-  # 平移比例
-  translate: 0.15
-  # 水平翻转概率
-  fliplr: 0.2
-  # 亮度增强（小地图常受亮度影响）
-  brightness: 0.2
-  # 对比度增强
-  contrast: 0.2
-  # 模糊增强（录屏时可能有模糊）
-  blur: 0.1
+  hsv_h: 0
+  hsv_s: 0
+  hsv_v: 0
+
+  degrees: 0.0         # 小地图不会旋转，干脆关掉
+  scale: 0.2           # 缩放幅度减小
+  translate: 0.05      # 平移减小
+  fliplr: 0.0          # 先关掉水平翻转，等效果好再考虑打开一点
+
+  brightness: 0.1
+  contrast: 0.1
+  blur: 0.05
 
 # 模型名称，图像路径（文件夹下的所有图片），输出路径示例
 test:
