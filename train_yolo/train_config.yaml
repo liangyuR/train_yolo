@@ -1,5 +1,3 @@
-# 小地图检测模型训练配置
-
 # 模型配置
 model:
   path: "yolo11m-pose.pt"
@@ -8,9 +6,6 @@ model:
 
 # 数据集配置
 dataset:
-  # "detect" or "obb" or "pose"
-  task_type: "pose"  
-  kpt_shape: [3, 3]
   source_dir: "C:/data/pose_labels"
   output_dir: "C:/data/pose_labels/processed/"
 
@@ -19,31 +14,7 @@ dataset:
   test_ratio: 0.1
   random_seed: 42
 
-  validate_labels: true
-
-  image_extensions:
-    - ".png"
-    - ".jpg"
-    - ".jpeg"
-
-  dataset_structure:
-    images_dir: "images"
-    labels_dir: "labels"
-    train: "train"
-    val: "val"
-    test: "test"
-
-  rename_files: true
-  rename_pattern: "minimap_{index:05d}"
-
-  num_workers: 4
-
-  export_summary: true
-  summary_path: "dataset_summary.json"
-
-  generate_data_yaml: true
-  data_yaml_name: "dataset.yaml"
-
+  rename_pattern: "{index:05d}"
 
 # 输出配置
 output:
@@ -87,12 +58,3 @@ augmentation:
   brightness: 0.1
   contrast: 0.1
   blur: 0.05
-
-# 模型名称，图像路径（文件夹下的所有图片），输出路径示例
-test:
-  model: "data/models/training/minimap/exp_minimap4/weights/best.pt"
-  image_dir: "data/minimap_images/"
-  output_dir: "data/models/training/minimap/exp_minimap4/val_result"
-  conf_threshold: 0.75   # 置信度阈值（放宽以观察更多检测结果）
-  iou_threshold: 0.5     # IoU 阈值（用于 NMS）
-  show_result: false     # 是否显示结果窗口（批量处理时建议设为 false）

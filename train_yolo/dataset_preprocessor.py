@@ -1,3 +1,5 @@
+# dataset_preprocessor.py
+from dataclasses import dataclass
 import json
 import random
 import shutil
@@ -6,74 +8,89 @@ from typing import List, Optional, Sequence, Tuple
 
 import yaml
 
+
+@dataclass
+class DatasetPreprocessorConfig:
+    input_dir: str
+    output_dir: str
+    random_seed: int = 42
+    train_ratio: float = 0.7
+    val_ratio: float = 0.2
+    test_ratio: float = 0.1
+
+
 class DatasetPreprocessor:
-    def __init__(self, input_dir: str, output_dir: str, task_type: str = "detect", random_seed: int = 42, train_ratio: float = 0.7, val_ratio: float = 0.2, test_ratio: float = 0.1, kpt_shape: Optional[Sequence[int]] = None):
-        self.input_dir = Path(input_dir)
-        self.output_dir = Path(output_dir)
-        self.task_type = task_type.lower()
-        self.random_seed = random_seed
-        self.notes_json = self.input_dir / "notes.json"
-        self.kpt_shape: Optional[Tuple[int, int]] = tuple(kpt_shape) if kpt_shape else None
-        
-        # ratios
-        self.train_ratio = train_ratio
-        self.val_ratio = val_ratio
-        self.test_ratio = test_ratio
+    def __init__(self, config: DatasetPreprocessorConfig):
+        self.config = config
+
+        self.input_dir = Path(self.config.input_dir)
+        self.output_dir = Path(self.config.output_dir)
+        self.random_seed = self.config.random_seed
+
+        self.train_ratio = self.config.train_ratio
+        self.val_ratio = self.config.val_ratio
+        self.test_ratio = self.config.test_ratio
 
         self.classes = []
 
-        # output structure
         self.train_dir = self.output_dir / "train"
         self.val_dir = self.output_dir / "val"
         self.test_dir = self.output_dir / "test"
 
         self._load_classes()
-        if self.task_type == "pose" and not self.kpt_shape:
-            raise ValueError("Pose 任务必须提供 kpt_shape (e.g. [17, 3])")
 
     def _load_classes(self):
-        if self.notes_json.exists():
-            data = json.loads(self.notes_json.read_text(encoding="utf-8"))
-            self.classes = [c["name"] for c in data.get("categories", [])]
-            if not self.classes:
-                raise ValueError(f"{self.notes_json} 中未找到 categories")
-            return
-
+        """
+        仅支持 data.yaml，不再支持 notes.json
+        """
         yaml_path = self.input_dir / "data.yaml"
-        if yaml_path.exists():
-            data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-            names = data.get("names")
-            if isinstance(names, dict):
-                # sort by numeric key to保证类别顺序
-                self.classes = [name for _, name in sorted(names.items(), key=lambda kv: int(kv[0]))]
-            elif isinstance(names, list):
-                self.classes = names
-            else:
-                raise ValueError(f"{yaml_path} 中的 names 字段为空或格式不正确")
-            if not self.classes:
-                raise ValueError(f"{yaml_path} 中 names 为空")
-            return
+        if not yaml_path.exists():
+            raise FileNotFoundError(f"缺少 data.yaml：{yaml_path}")
 
-        raise FileNotFoundError(f"{self.notes_json} not found 且 {yaml_path} 不存在")
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        names = data.get("names")
+
+        if isinstance(names, dict):
+            self.classes = [name for _, name in sorted(names.items(), key=lambda kv: int(kv[0]))]
+        elif isinstance(names, list):
+            self.classes = names
+        else:
+            raise ValueError("data.yaml 中 names 格式不正确")
+
+        if not self.classes:
+            raise ValueError("data.yaml 中 names 为空")
 
     def _get_image_paths(self):
         images_dir = self.input_dir / "images"
-        # 递归查找所有图像文件
+        patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp"]
         image_paths = []
-        for pattern in ["*.png", "*.jpg", "*.jpeg", "*.bmp"]:
-            image_paths.extend(images_dir.rglob(pattern))
+        for p in patterns:
+            image_paths.extend(images_dir.rglob(p))
         return sorted(image_paths)
+
+    def _check_dataset(self, N: int):
+        """检查极端情况"""
+        if N < 3:
+            raise ValueError(f"图片数量过少（{N} 张），无法进行 train/val/test 划分。")
+
+        if self.train_ratio <= 0 or self.val_ratio < 0 or self.test_ratio < 0:
+            raise ValueError("train/val/test 比例必须为正数")
+
+        total = self.train_ratio + self.val_ratio + self.test_ratio
+        if total <= 0:
+            raise ValueError("train/val/test 比例总和必须大于 0")
 
     def _split_dataset(self, image_paths: List[Path]):
         random.seed(self.random_seed)
         random.shuffle(image_paths)
         N = len(image_paths)
 
-        # ensure ratio sum is 1
+        self._check_dataset(N)
+
         total = self.train_ratio + self.val_ratio + self.test_ratio
         tr = self.train_ratio / total
         vr = self.val_ratio / total
-        
+
         n_train = int(N * tr)
         n_val = int(N * vr)
 
@@ -84,47 +101,43 @@ class DatasetPreprocessor:
         }
         return splits
 
-    def _process_split(self, split_name: str, images: List[Path]):
+    def _process_split(self, split_name: str, images: List[Path], start_index: int):
         target = self.output_dir / split_name
-        for idx, img_path in enumerate(images):
-            new_name = f"img_{idx:05d}{img_path.suffix}"
+
+        for i, img_path in enumerate(images):
+            global_idx = start_index + i  # 保证全局唯一编号
+            new_name = f"{split_name}_{global_idx:05d}{img_path.suffix}"
+
             shutil.copy(img_path, target / "images" / new_name)
 
-            # 计算相对路径，保持子目录结构
+            # 标签路径定位
             try:
-                rel_path = img_path.relative_to(self.input_dir / "images")
-                label_path = self.input_dir / "labels" / rel_path.with_suffix(".txt")
+                rel = img_path.relative_to(self.input_dir / "images")
+                label_path = self.input_dir / "labels" / rel.with_suffix(".txt")
             except ValueError:
-                # 如果无法计算相对路径，回退到原来的方法
                 label_path = self.input_dir / "labels" / f"{img_path.stem}.txt"
-            
+
             if label_path.exists():
-                label_data = label_path.read_text(encoding="utf-8")
                 new_label_name = f"{Path(new_name).stem}.txt"
-                (target / "labels" / new_label_name).write_text(label_data, encoding="utf-8")
+                (target / "labels" / new_label_name).write_text(
+                    label_path.read_text(encoding="utf-8"),
+                    encoding="utf-8"
+                )
             else:
-                print(f"[WARNING] 标签文件不存在: {label_path}")
+                print(f"[WARNING] 标签不存在: {label_path}")
+
+        return start_index + len(images)
 
     def _generate_yaml(self):
         yaml_path = self.output_dir / "dataset.yaml"
         data = {
-            "path": str(self.output_dir),
-            "train": str(self.train_dir / "images"),
-            "val": str(self.val_dir / "images"),
-            "test": str(self.test_dir / "images"),
+            "path": str(self.output_dir).replace("\\", "/"),
+            "train": str(self.train_dir / "images").replace("\\", "/"),
+            "val": str(self.val_dir / "images").replace("\\", "/"),
+            "test": str(self.test_dir / "images").replace("\\", "/"),
             "names": self.classes
         }
-        if self.task_type == "pose":
-            data["task"] = "pose"
-            data["kpt_shape"] = list(self.kpt_shape or [])
-        with open(yaml_path, "w", encoding="utf-8") as f:
-            for k, v in data.items():
-                if isinstance(v, list):
-                    f.write(f"{k}:\n")
-                    for item in v:
-                        f.write(f"  - {item}\n")
-                else:
-                    f.write(f"{k}: {v}\n")
+        yaml.safe_dump(data, open(yaml_path, "w", encoding="utf-8"), allow_unicode=True)
 
     def prepare(self):
         for d in [self.train_dir, self.val_dir, self.test_dir]:
@@ -134,12 +147,17 @@ class DatasetPreprocessor:
         images = self._get_image_paths()
         splits = self._split_dataset(images)
 
-        for name, subset in splits.items():
-            self._process_split(name, subset)
+        global_index = 0
+        for split_name, subset in splits.items():
+            global_index = self._process_split(split_name, subset, global_index)
 
         self._generate_yaml()
-        print(f"[INFO] Dataset prepared successfully for task={self.task_type}")
+
 
 if __name__ == "__main__":
-    processor = DatasetPreprocessor("C:/Users/11601/project/wot_ai/data/origin_data", "C:/Users/11601/project/wot_ai/data/datasets/processed/minimap")
+    config = DatasetPreprocessorConfig(
+        input_dir="C:/Users/11601/project/wot_ai/data/origin_data",
+        output_dir="C:/Users/11601/project/wot_ai/data/datasets/processed/minimap"
+    )
+    processor = DatasetPreprocessor(config)
     processor.prepare()
