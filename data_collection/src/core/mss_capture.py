@@ -7,10 +7,8 @@ import numpy as np
 from typing import Tuple, Optional
 from loguru import logger
 
-from wot_ai.data_collection.core.screen_capture import ScreenCapture
 
-
-class MssScreenCapture(ScreenCapture):
+class MssScreenCapture():
     """使用 mss 库的屏幕捕获实现"""
     
     def __init__(self):
