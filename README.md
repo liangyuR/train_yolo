@@ -8,12 +8,6 @@
 wot_ai/
 ├── pyproject.toml          # Poetry 配置文件
 ├── README.md               # 项目说明文档
-├── wot_ai/                 # 主包
-│   ├── __init__.py
-│   ├── data_collection/    # 数据采集模块
-│   ├── game_modules/       # 游戏功能模块
-│   ├── train_yolo/         # YOLO 模型训练模块
-│   └── utils/              # 工具模块
 ├── tests/                  # 测试文件
 └── data/                   # 数据目录（训练数据、模型等）
 ```
@@ -78,7 +72,7 @@ python -m wot_ai.game_modules.navigation.controller.path_planning_controller
 
 ```bash
 # 训练小地图检测模型
-python -m wot_ai.train_yolo.train_minimap_yolo
+python ./train_yolo/
 
 # 准备数据集
 python -m wot_ai.train_yolo.prepare_minimap_dataset

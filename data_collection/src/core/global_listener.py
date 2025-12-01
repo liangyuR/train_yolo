@@ -6,20 +6,18 @@ from typing import Set, Callable, Tuple
 from loguru import logger
 
 try:
-    from data_collection.global_hotkey import GlobalKeyboardListener
+    from src.utils.global_hotkey import GlobalKeyboardListener
     GLOBAL_HOOK_AVAILABLE = True
 except ImportError:
     try:
-        from global_hotkey import GlobalKeyboardListener
+        from data_collection.src.utils.global_hotkey import GlobalKeyboardListener
         GLOBAL_HOOK_AVAILABLE = True
     except ImportError:
         GLOBAL_HOOK_AVAILABLE = False
         logger.warning("全局键盘钩子不可用")
 
-from wot_ai.data_collection.core.input_listener import InputListener, InputAction
 
-
-class GlobalInputListener(InputListener):
+class GlobalInputListener():
     """使用全局键盘钩子的输入监听实现（可捕获所有窗口的输入）"""
     
     def __init__(self):
@@ -113,4 +111,3 @@ class GlobalInputListener(InputListener):
             self.current_keys_.add(f"mouse_{button.name}")
         else:
             self.current_keys_.discard(f"mouse_{button.name}")
-

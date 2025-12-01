@@ -1,0 +1,14 @@
+capture:
+  fps: 5.0
+  frame_step: 2
+  mode: fullscreen
+  output_dir: data/recordings
+  fullscreen:
+    width: 1920
+    height: 1080
+target_resolution:
+  width: 960
+  height: 540
+hotkeys:
+  start: f9
+  stop: f10
