@@ -150,9 +150,9 @@ def _pull(cfg_a: Dict[str, Any], cfg_b: Dict[str, Any], key: str, default: Any =
 def _merge_augmentation(training_cfg: Dict[str, Any], root_cfg: Dict[str, Any]) -> Dict[str, Any]:
     """构建 YOLO 所需增强参数集。"""
     aug_cfg: Dict[str, Any] = dict(root_cfg.get("augmentation", {}) or {})
-    enable = training_cfg.get("augment", True) and aug_cfg.get("enable", True)
-    if not enable:
-        return {"augment": False}
+    # enable = training_cfg.get("augment", True) and aug_cfg.get("enable", True)
+    # if not enable:
+    #     return {"augment": False}
 
     defaults = {
         "hsv_h": 0.015, "hsv_s": 0.7, "hsv_v": 0.4,
@@ -221,7 +221,7 @@ def _collect_train_params(config: Dict[str, Any], yaml_path: Path) -> Dict[str, 
         "seed": t.get("seed", 42),
         "amp": t.get("amp", True),
         "deterministic": t.get("deterministic", False),
-        "accumulate": t.get("accumulate", 1),
+        # "accumulate": t.get("accumulate", 1),
         # 优化器与 LR
         "optimizer": t.get("optimizer", "auto"),
         "lr0": t.get("lr0", 0.01),
@@ -235,18 +235,18 @@ def _collect_train_params(config: Dict[str, Any], yaml_path: Path) -> Dict[str, 
         "dropout": t.get("dropout", 0.0),
         "label_smoothing": t.get("label_smoothing", 0.0),
         "patience": t.get("patience", 50),
-        "ema": t.get("ema", True),
+        # "ema": t.get("ema", True),
         # 数据加载策略
         "cache": t.get("cache", False),
         "rect": t.get("rect", False),
-        "shuffle": t.get("shuffle", True),
+        # "shuffle": t.get("shuffle", True),
         # 任务相关
         "single_cls": t.get("single_cls", False),
         "classes": t.get("classes", None),
         "max_det": t.get("max_det", 300),
         # 其他
         "freeze": t.get("freeze", 0),
-        "close_logger": close_logger,
+        # "close_logger": close_logger,
     }
 
     # 合并损失权重

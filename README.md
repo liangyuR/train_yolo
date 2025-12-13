@@ -101,3 +101,7 @@ python -m wot_ai.data_collection.build
 
 [添加许可证信息]
 
+
+
+
+python train_yolo/yolo_annotator.py --model path/to/model.pt --images path/to/images --output path/to/output --conf 0.25
