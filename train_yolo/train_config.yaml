@@ -11,8 +11,8 @@ model:
 
 # ——— 2) 数据集配置 ——#
 dataset:
-  source_dir: "D:/WoTDataCollection/data/20251213_6_all_in_one"          # 原始数据目录（标注在此）
-  output_dir: "D:/WoTDataCollection/data/20251213_6_all_in_one/processed"  # 预处理输出目录（会生成 dataset.yaml）
+  source_dir: "D:/WoTDataCollection/data/20251213_tank"          # 原始数据目录（标注在此）
+  output_dir: "D:/WoTDataCollection/data/20251213_tank/processed"  # 预处理输出目录（会生成 dataset.yaml）
   random_seed: 42                             # 随机种子；复现实验（建议固定）
   train_ratio: 0.7                            # 训练集占比；(0,1)
   val_ratio: 0.2                              # 验证集占比；(0,1)；两者之和 < 1
@@ -22,7 +22,7 @@ dataset:
 training:
   # —— 训练循环 ——
   epochs: 300               # 总轮次；>=1；常用 50~300；小数据/强增强可更大
-  batch: 24                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
+  batch: 12                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
   workers: 8                # DataLoader 进程数；[0, CPU核数]；Linux>Windows；0最稳
   seed: 42                  # 训练种子；保持复现；设为 null 则每次不同
   accumulate: 1             # 梯度累积步数；>=1；等效增大 batch；显存不足时用 2/4
@@ -30,7 +30,7 @@ training:
   deterministic: false      # 设为 true 可提升复现性（会略降速）
 
   # —— 优化器 & 学习率 ——
-  optimizer: "SGD"        # auto/SGD/Adam/AdamW；SGD稳、AdamW对噪声更鲁棒
+  optimizer: "AdamW"        # auto/SGD/Adam/AdamW；SGD稳、AdamW对噪声更鲁棒
   lr0: 0.0015               # 初始LR；(0,0.1]；SGD≈1e-2；Adam/AdamW≈1e-3~3e-3
   lrf: 0.01                 # 最终LR比例（余弦/线性）(0,1]；常用 0.01~0.2
   momentum: 0.937           # 动量/一阶β；[0.6, 0.999]；SGD/Adam(W) 通用建议
