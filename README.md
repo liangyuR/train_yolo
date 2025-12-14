@@ -104,4 +104,7 @@ python -m wot_ai.data_collection.build
 
 
 
+# 用模型预先标注后传入 cvat
 python train_yolo/yolo_annotator.py --model path/to/model.pt --images path/to/images --output path/to/output --conf 0.25
+
+python train_yolo/yolo_annotator.py --model C:\Users\11601\project\train_yolo\train_yolo\runs\train\exp-rot-mosaic4\weights\best.pt --images D:\WoTDataCollection\data\recordings\session_20251101_182453\frames --output D:\WoTDataCollection\data\yubiaozhu_20251213_1 --conf 0.25

@@ -13,7 +13,9 @@ YOLO 预标注工具
 from __future__ import annotations
 
 import shutil
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -73,7 +75,7 @@ class YOLOAnnotator:
         logger.info(f"类别映射: {self.class_names_}")
 
     def _getImagePaths(self) -> List[Path]:
-        """获取图片文件夹中的所有图片路径
+        """获取图片文件夹中的所有图片路径（递归搜索所有子目录）
 
         Returns:
             图片路径列表
@@ -82,11 +84,36 @@ class YOLOAnnotator:
             raise FileNotFoundError(f"图片文件夹不存在: {self.image_dir_}")
 
         image_paths = []
-        for ext in self.IMAGE_EXTENSIONS:
-            image_paths.extend(self.image_dir_.rglob(f"*{ext}"))
-            image_paths.extend(self.image_dir_.rglob(f"*{ext.upper()}"))
 
+        # 获取所有子目录（包括根目录）
+        all_dirs = [self.image_dir_] + [d for d in self.image_dir_.rglob("*") if d.is_dir()]
+        logger.info(f"搜索到 {len(all_dirs)} 个目录")
+
+        for directory in all_dirs:
+            for ext in self.IMAGE_EXTENSIONS:
+                # 只搜索当前目录（不递归）
+                image_paths.extend(directory.glob(f"*{ext}"))
+                image_paths.extend(directory.glob(f"*{ext.upper()}"))
+
+        logger.info(f"在所有目录中共找到 {len(image_paths)} 张图片")
         return sorted(set(image_paths))
+
+    def _generateTimestampName(self, original_path: Path, index: int) -> str:
+        """生成基于时间戳的新文件名
+
+        Args:
+            original_path: 原始图片路径
+            index: 图片索引（用于确保唯一性）
+
+        Returns:
+            新的文件名（带扩展名）
+        """
+        # 使用当前时间戳 + 微秒 + 索引确保唯一性
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 添加微秒和索引以确保唯一性
+        unique_suffix = f"{int(time.time() * 1000000) % 1000000:06d}_{index:06d}"
+        ext = original_path.suffix.lower()
+        return f"{timestamp}_{unique_suffix}{ext}"
 
     def _processImage(self, image_path: Path) -> Tuple[np.ndarray, Any]:
         """处理单张图片，返回图片数据和检测结果
@@ -225,13 +252,17 @@ class YOLOAnnotator:
                 if hasattr(result, "boxes") and result.boxes is not None:
                     annotations = self._convertToYoloFormat(result.boxes, image.shape)
 
-                # 复制图片
-                dest_image_path = images_dir / image_path.name
-                shutil.copy(image_path, dest_image_path)
-                processed_image_names.append(image_path.name)
+                # 生成时间戳命名
+                new_image_name = self._generateTimestampName(image_path, i)
+                new_stem = Path(new_image_name).stem
 
-                # 保存标注
-                label_name = image_path.stem + ".txt"
+                # 复制图片（使用新的时间戳命名）
+                dest_image_path = images_dir / new_image_name
+                shutil.copy(image_path, dest_image_path)
+                processed_image_names.append(new_image_name)
+
+                # 保存标注（使用相同的时间戳命名）
+                label_name = new_stem + ".txt"
                 label_path = labels_dir / label_name
                 self._saveAnnotation(label_path, annotations)
 
@@ -281,3 +312,4 @@ if __name__ == "__main__":
     annotator = YOLOAnnotator(config)
     annotator.Annotate()
 
+# python train_yolo/yolo_annotator.py --model path/to/model.pt --images path/to/images --output path/to/output --conf 0.25
