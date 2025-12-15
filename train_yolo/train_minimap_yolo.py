@@ -162,8 +162,8 @@ def _merge_augmentation(training_cfg: Dict[str, Any], root_cfg: Dict[str, Any]) 
         "mosaic": 0.0, "close_mosaic": 0,
         "copy_paste": 0.0, "mixup": 0.0,
     }
-    # 过滤掉 preset 键
-    merged = {**defaults, **{k: v for k, v in aug_cfg.items() if k != "preset"}}
+    # 过滤掉 preset 和 enable 键
+    merged = {**defaults, **{k: v for k, v in aug_cfg.items() if k not in ("preset", "enable")}}
     # 边界修正
     def _clamp(x, lo, hi):
         try:
@@ -221,7 +221,7 @@ def _collect_train_params(config: Dict[str, Any], yaml_path: Path) -> Dict[str, 
         "seed": t.get("seed", 42),
         "amp": t.get("amp", True),
         "deterministic": t.get("deterministic", False),
-        "accumulate": t.get("accumulate", 1),
+        # "accumulate": t.get("accumulate", 1), # 报错提示不支持
         # 优化器与 LR
         "optimizer": t.get("optimizer", "auto"),
         "lr0": t.get("lr0", 0.01),
@@ -235,18 +235,19 @@ def _collect_train_params(config: Dict[str, Any], yaml_path: Path) -> Dict[str, 
         "dropout": t.get("dropout", 0.0),
         "label_smoothing": t.get("label_smoothing", 0.0),
         "patience": t.get("patience", 50),
-        "ema": t.get("ema", True),
+        # "ema": t.get("ema", True), # 不再支持直接传参
         # 数据加载策略
         "cache": t.get("cache", False),
         "rect": t.get("rect", False),
-        "shuffle": t.get("shuffle", True),
+        # "shuffle": t.get("shuffle", True),  # YOLO train 不再直接支持 shuffle 参数
         # 任务相关
         "single_cls": t.get("single_cls", False),
         "classes": t.get("classes", None),
         "max_det": t.get("max_det", 300),
         # 其他
         "freeze": t.get("freeze", 0),
-        "close_logger": close_logger,
+        # "close_logger": close_logger, # 不再支持
+        # "ema": t.get("ema", True),   # 不再支持
     }
 
     # 合并损失权重

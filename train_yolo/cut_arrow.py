@@ -81,8 +81,9 @@ def ProcessImage(
     output_dir: Path,
     crop_size: int,
     conf_threshold: float,
-    target_class_id: int
-) -> bool:
+    target_class_id: int,
+    global_index: int
+) -> Tuple[bool, str]:
     """
     处理单张图片：检测箭头并裁切
     
@@ -93,52 +94,74 @@ def ProcessImage(
         crop_size: 裁剪框大小
         conf_threshold: 置信度阈值
         target_class_id: 目标类别 ID
+        global_index: 全局索引，用于生成唯一文件名
     
     Returns:
-        是否成功处理
+        (是否成功处理, 失败原因)
     """
     # 读取图片
     image = cv2.imread(str(image_path))
     if image is None:
         logger.error(f"无法读取图片: {image_path}")
-        return False
+        return False, "无法读取图片"
     
     img_height, img_width = image.shape[:2]
     
-    # 推理
-    results = model(image, conf=conf_threshold, verbose=False)
+    # 提取右下角 800x800 区域
+    roi_size = 800
+    x_start = max(0, img_width - roi_size)
+    y_start = max(0, img_height - roi_size)
+    x_end = min(img_width, x_start + roi_size)
+    y_end = min(img_height, y_start + roi_size)
+    roi = image[y_start:y_end, x_start:x_end]
+    
+    # 推理（只对右下角区域）
+    results = model(roi, conf=conf_threshold, verbose=False)
     res = results[0]
     
     # 检查是否有检测结果
     if not hasattr(res, "boxes") or res.boxes is None:
         logger.warning(f"未检测到任何目标: {image_path}")
-        return False
+        return False, "未检测到任何目标"
     
     boxes = res.boxes
     if boxes.shape[0] == 0:
         logger.warning(f"未检测到任何目标: {image_path}")
-        return False
+        return False, "未检测到任何目标"
     
     # 提取检测框信息
     xyxy = boxes.xyxy.cpu().numpy()
     conf = boxes.conf.cpu().numpy()
     cls = boxes.cls.cpu().numpy().astype(int)
     
-    # 过滤目标类别
+    # 过滤目标类别（self_arrow）
     target_mask = cls == target_class_id
     if not np.any(target_mask):
         logger.warning(f"未检测到目标类别 (ID={target_class_id}): {image_path}")
-        return False
+        return False, "未检测到目标类别"
     
-    # 选择置信度最高的检测框
+    # 选择置信度最高的 self_arrow 检测框（一张图片只处理一个）
     target_xyxy = xyxy[target_mask]
     target_conf = conf[target_mask]
     best_idx = np.argmax(target_conf)
     best_box = target_xyxy[best_idx]
     best_conf = target_conf[best_idx]
     
-    # 计算检测框中心
+    # 如果检测到多个目标，记录信息但只处理置信度最高的
+    if np.sum(target_mask) > 1:
+        logger.debug(
+            f"检测到 {np.sum(target_mask)} 个目标，选择置信度最高的 "
+            f"(置信度: {best_conf:.3f})"
+        )
+    
+    # 将检测框坐标从ROI坐标系转换回原图坐标系
     x1, y1, x2, y2 = best_box
+    x1 += x_start
+    y1 += y_start
+    x2 += x_start
+    y2 += y_start
+    
+    # 计算检测框中心
     center_x = (x1 + x2) / 2.0
     center_y = (y1 + y2) / 2.0
     
@@ -150,15 +173,15 @@ def ProcessImage(
     # 执行裁剪
     cropped = image[crop_y1:crop_y2, crop_x1:crop_x2]
     
-    # 保存结果
-    output_path = output_dir / f"{image_path.stem}_cropped{image_path.suffix}"
+    # 保存结果（使用全局索引确保文件名唯一）
+    output_path = output_dir / f"cropped_{global_index:06d}{image_path.suffix}"
     cv2.imwrite(str(output_path), cropped)
     
     logger.info(
         f"处理成功: {image_path.name} -> {output_path.name} "
         f"(置信度: {best_conf:.3f}, 中心: ({center_x:.1f}, {center_y:.1f}))"
     )
-    return True
+    return True, ""
 
 
 def main():
@@ -167,11 +190,11 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="输入图片路径或目录")
     parser.add_argument("--output", type=str, required=True, help="输出目录")
     parser.add_argument("--size", type=int, default=128, help="裁剪框边长（默认: 128）")
-    parser.add_argument("--conf", type=float, default=0.25, help="置信度阈值（默认: 0.25）")
+    parser.add_argument("--conf", type=float, default=0.75, help="置信度阈值（默认: 0.25）")
     parser.add_argument(
         "--target-class",
         type=str,
-        default="arrow",
+        default="self_arrow",
         help="目标类别名称（默认: arrow）"
     )
     args = parser.parse_args()
@@ -203,7 +226,7 @@ def main():
         )
     logger.info(f"目标类别: '{args.target_class}' (ID={target_class_id})")
     
-    # 收集图片文件
+    # 收集图片文件（支持递归查找）
     image_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"}
     image_paths = []
     
@@ -213,10 +236,14 @@ def main():
         else:
             raise ValueError(f"输入文件不是支持的图片格式: {input_path}")
     elif input_path.is_dir():
+        # 递归查找所有子目录中的图片文件
         for ext in image_extensions:
+            # rglob 会递归搜索所有子目录
             image_paths.extend(input_path.rglob(f"*{ext}"))
             image_paths.extend(input_path.rglob(f"*{ext.upper()}"))
+        # 去重并排序
         image_paths = sorted(set(image_paths))
+        logger.info(f"递归搜索目录: {input_path}")
     else:
         raise ValueError(f"输入路径既不是文件也不是目录: {input_path}")
     
@@ -227,14 +254,40 @@ def main():
     
     # 处理每张图片
     success_count = 0
+    failed_count = 0
+    global_index = 0  # 全局索引，用于生成唯一的输出文件名
+    failed_reasons = {
+        "无法读取图片": 0,
+        "未检测到任何目标": 0,
+        "未检测到目标类别": 0
+    }
+    
     for i, image_path in enumerate(image_paths, 1):
         logger.info(f"处理进度: {i}/{len(image_paths)} - {image_path.name}")
-        if ProcessImage(
-            model, image_path, output_dir, args.size, args.conf, target_class_id
-        ):
+        success, reason = ProcessImage(
+            model, image_path, output_dir, args.size, args.conf, target_class_id, global_index
+        )
+        if success:
             success_count += 1
+            global_index += 1  # 只有成功处理时才递增索引
+        else:
+            failed_count += 1
+            if reason in failed_reasons:
+                failed_reasons[reason] += 1
     
-    logger.info(f"处理完成: 成功 {success_count}/{len(image_paths)} 张")
+    # 输出详细统计信息
+    logger.info("=" * 60)
+    logger.info(f"处理完成统计:")
+    logger.info(f"  总图片数: {len(image_paths)}")
+    logger.info(f"  成功处理: {success_count} 张")
+    logger.info(f"  处理失败: {failed_count} 张")
+    logger.info(f"  成功率: {success_count/len(image_paths)*100:.1f}%")
+    if failed_count > 0:
+        logger.info(f"\n失败原因统计:")
+        for reason, count in failed_reasons.items():
+            if count > 0:
+                logger.info(f"  {reason}: {count} 张")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

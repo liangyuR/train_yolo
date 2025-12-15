@@ -6,13 +6,13 @@
 # ——— 1) 模型配置 ——#
 model:
   path: "yolo11m-pose.pt"     # 预训练权重文件；可用 yolo11n/m/l/x-pose.pt 或自训权重
-  imgsz: 640                  # 输入尺寸；[256, 1536]；常用 512/640/768（大更准、慢+显存大）
+  imgsz: 48                  # 输入尺寸；[256, 1536]；常用 512/640/768（大更准、慢+显存大）
   device: "0"                 # 设备：GPU索引如 "0"、多卡 "0,1"，或 "cpu"
 
 # ——— 2) 数据集配置 ——#
 dataset:
-  source_dir: "C:/data/pose_labels"          # 原始数据目录（标注在此）
-  output_dir: "C:/data/pose_labels/processed"  # 预处理输出目录（会生成 dataset.yaml）
+  source_dir: "C:/data/20251203"          # 原始数据目录（标注在此）
+  output_dir: "C:/data/20251203/processed"  # 预处理输出目录（会生成 dataset.yaml）
   random_seed: 42                             # 随机种子；复现实验（建议固定）
   train_ratio: 0.7                            # 训练集占比；(0,1)
   val_ratio: 0.2                              # 验证集占比；(0,1)；两者之和 < 1
@@ -22,7 +22,7 @@ dataset:
 training:
   # —— 训练循环 ——
   epochs: 150               # 总轮次；>=1；常用 50~300；小数据/强增强可更大
-  batch: 24                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
+  batch: 48                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
   workers: 8                # DataLoader 进程数；[0, CPU核数]；Linux>Windows；0最稳
   seed: 42                  # 训练种子；保持复现；设为 null 则每次不同
   accumulate: 1             # 梯度累积步数；>=1；等效增大 batch；显存不足时用 2/4

@@ -10,5 +10,5 @@ hotkeys:
   start: f9
   stop: f10
 target_resolution:
-  height: 540
-  width: 960
+  width: 3840
+  height: 2160

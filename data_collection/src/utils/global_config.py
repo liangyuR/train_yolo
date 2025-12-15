@@ -18,8 +18,8 @@ DEFAULT_CONFIG = {
         },
     },
     "target_resolution": {
-        "width": 960,
-        "height": 540,
+        "width": 3840,
+        "height": 2160,
     },
     "hotkeys": {
         "start": "f9",
