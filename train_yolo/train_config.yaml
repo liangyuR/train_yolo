@@ -5,14 +5,14 @@
 
 # ——— 1) 模型配置 ——#
 model:
-  path: "yolo11m-pose.pt"     # 预训练权重文件；可用 yolo11n/m/l/x-pose.pt 或自训权重
-  imgsz: 48                  # 输入尺寸；[256, 1536]；常用 512/640/768（大更准、慢+显存大）
+  path: "yolo11m.pt"     # 预训练权重文件；可用 yolo11n/m/l/x-pose.pt 或自训权重
+  imgsz: 640                  # 输入尺寸；[256, 1536]；常用 512/640/768（大更准、慢+显存大）
   device: "0"                 # 设备：GPU索引如 "0"、多卡 "0,1"，或 "cpu"
 
 # ——— 2) 数据集配置 ——#
 dataset:
-  source_dir: "C:/data/20251203"          # 原始数据目录（标注在此）
-  output_dir: "C:/data/20251203/processed"  # 预处理输出目录（会生成 dataset.yaml）
+  source_dir: "D:/WoTDataCollection/data/20251213_tank"          # 原始数据目录（标注在此）
+  output_dir: "D:/WoTDataCollection/data/20251213_tank/processed"  # 预处理输出目录（会生成 dataset.yaml）
   random_seed: 42                             # 随机种子；复现实验（建议固定）
   train_ratio: 0.7                            # 训练集占比；(0,1)
   val_ratio: 0.2                              # 验证集占比；(0,1)；两者之和 < 1
@@ -21,8 +21,8 @@ dataset:
 # ——— 3) 训练核心超参 ——#
 training:
   # —— 训练循环 ——
-  epochs: 150               # 总轮次；>=1；常用 50~300；小数据/强增强可更大
-  batch: 48                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
+  epochs: 300               # 总轮次；>=1；常用 50~300；小数据/强增强可更大
+  batch: 12                 # 批大小；>=1；受显存限制；常用 8~64；mosaic>0 建议 >=4
   workers: 8                # DataLoader 进程数；[0, CPU核数]；Linux>Windows；0最稳
   seed: 42                  # 训练种子；保持复现；设为 null 则每次不同
   accumulate: 1             # 梯度累积步数；>=1；等效增大 batch；显存不足时用 2/4
@@ -36,7 +36,7 @@ training:
   momentum: 0.937           # 动量/一阶β；[0.6, 0.999]；SGD/Adam(W) 通用建议
   weight_decay: 0.0005      # 权重衰减；[0, 0.01]；AdamW 解耦衰减更稳
   # —— 热身（前期稳定） ——
-  warmup_epochs: 3.0        # 热身轮次；[0, 10]；大batch可减小
+  warmup_epochs: 0.0        # 热身轮次；[0, 10]；大batch可减小
   warmup_momentum: 0.8      # 热身动量；[0.5, 0.95]
   warmup_bias_lr: 0.1       # 热身阶段 bias 的较大LR；[0.05, 0.5]
 
@@ -76,28 +76,37 @@ training:
 
 # ——— 4) 数据增强（旋转 + 拼接 等）——#
 augmentation:
-  enable: true              # 总开关；false 完全禁用增强
+  # enable: true              # 总开关；false 完全禁用增强
   preset: null              # 预设名（见下方 presets）；命令行可 --preset 覆盖
 
   # —— 几何 ——
-  degrees: 10.0             # 旋转角度（度）；[0, 45]；只开旋转就改这里
+  # degrees: 10.0             # 旋转角度（度）；[0, 45]；只开旋转就改这里
+  # translate: 0.10           # 平移比例；[0, 0.3]
+  # scale: 0.50               # 缩放幅度；[0, 0.9]；0.5 表示放缩上下各 50%
+  # shear: 1.0                # 切变（度）；[0, 10]
+  # perspective: 0.0          # 透视畸变；[0, 0.001]；大多数场景 0
+  # fliplr: 0.20              # 左右翻转概率；[0, 1]
+  # flipud: 0.0               # 上下翻转概率；[0, 1]
+
+  # hub 训练
+  degrees: 0             # 旋转角度（度）；[0, 45]；只开旋转就改这里
   translate: 0.10           # 平移比例；[0, 0.3]
-  scale: 0.50               # 缩放幅度；[0, 0.9]；0.5 表示放缩上下各 50%
-  shear: 1.0                # 切变（度）；[0, 10]
+  scale: 0               # 缩放幅度；[0, 0.9]；0.5 表示放缩上下各 50%
+  shear: 0                # 切变（度）；[0, 10]
   perspective: 0.0          # 透视畸变；[0, 0.001]；大多数场景 0
-  fliplr: 0.20              # 左右翻转概率；[0, 1]
+  fliplr: 0              # 左右翻转概率；[0, 1]
   flipud: 0.0               # 上下翻转概率；[0, 1]
 
   # —— 拼接/混合 ——
-  mosaic: 0.0               # 四图拼接概率；[0, 1]；batch>=4 更稳
-  close_mosaic: 10          # 第 N 轮后关闭 mosaic；[0, epochs]；0=不关闭
+  mosaic: 0.5               # 四图拼接概率；[0, 1]；batch>=4 更稳
+  close_mosaic: 150          # 第 N 轮后关闭 mosaic；[0, epochs]；0=不关闭
   mixup: 0.0                # mixup 概率；[0, 1]；小样本可 0.1 试探
-  copy_paste: 0.0           # 分割/实例更常用；姿态/检测通常 0
+  copy_paste: 0           # 分割/实例更常用；姿态/检测通常 [0, 1]
 
   # —— 颜色 ——
-  hsv_h: 0.015              # 色调扰动；[0, 0.05]
-  hsv_s: 0.70               # 饱和度；[0, 0.9]
-  hsv_v: 0.40               # 亮度；[0, 0.9]
+  hsv_h: 0              # 色调扰动；[0, 0.05]
+  hsv_s: 0               # 饱和度；[0, 0.9]
+  hsv_v: 0               # 亮度；[0, 0.9]
 
 # ——— 5) 预设（可一键切换增强风格）——#
 presets:

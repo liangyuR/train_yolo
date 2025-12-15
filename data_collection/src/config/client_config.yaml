@@ -2,8 +2,8 @@ capture:
   fps: 0.2
   frame_step: 2
   fullscreen:
-    height: 2160
-    width: 3840
+    height: 1440
+    width: 3440
   mode: fullscreen
   output_dir: data/recordings
 hotkeys:
